@@ -1,13 +1,28 @@
 import type { APIRoute } from 'astro';
 import type { FamilyMember, Activity, ScheduleMap, CompletionsMap, DayOfWeek } from '../../types';
 
+function getDB(context: any) {
+  return (
+    context.locals?.runtime?.env?.DB ||
+    context.locals?.env?.DB ||
+    context.env?.DB ||
+    (globalThis as any).DB
+  );
+}
+
 export const GET: APIRoute = async (context) => {
   try {
-    const runtime = context.locals.runtime as any;
-    const db = runtime?.env?.DB;
+    const db = getDB(context);
 
     if (!db) {
-      return new Response(JSON.stringify({ error: 'DB binding missing' }), {
+      const debugInfo = {
+        hasLocals: !!context.locals,
+        hasRuntime: !!context.locals?.runtime,
+        runtimeEnvKeys: context.locals?.runtime?.env ? Object.keys(context.locals.runtime.env) : [],
+        localsEnvKeys: context.locals?.env ? Object.keys(context.locals.env) : [],
+        globalThisDB: !!(globalThis as any).DB,
+      };
+      return new Response(JSON.stringify({ error: 'DB binding missing', debug: debugInfo }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       });

@@ -1,9 +1,17 @@
 import type { APIRoute } from 'astro';
 
+function getDB(context: any) {
+  return (
+    context.locals?.runtime?.env?.DB ||
+    context.locals?.env?.DB ||
+    context.env?.DB ||
+    (globalThis as any).DB
+  );
+}
+
 export const POST: APIRoute = async (context) => {
   try {
-    const runtime = context.locals.runtime as any;
-    const db = runtime?.env?.DB;
+    const db = getDB(context);
     if (!db) return new Response(JSON.stringify({ error: 'DB binding missing' }), { status: 500 });
 
     const body = await context.request.json();
@@ -22,13 +30,11 @@ export const POST: APIRoute = async (context) => {
 
 export const PUT: APIRoute = async (context) => {
   try {
-    const runtime = context.locals.runtime as any;
-    const db = runtime?.env?.DB;
+    const db = getDB(context);
     if (!db) return new Response(JSON.stringify({ error: 'DB binding missing' }), { status: 500 });
 
     const body = await context.request.json();
     
-    // Soporte para reordenamiento en lote de varias actividades
     if (Array.isArray(body)) {
       const stmts = body.map((act: any) =>
         db.prepare(`UPDATE activities SET sortOrder = ? WHERE id = ?`).bind(act.order, act.id)
@@ -50,8 +56,7 @@ export const PUT: APIRoute = async (context) => {
 
 export const DELETE: APIRoute = async (context) => {
   try {
-    const runtime = context.locals.runtime as any;
-    const db = runtime?.env?.DB;
+    const db = getDB(context);
     if (!db) return new Response(JSON.stringify({ error: 'DB binding missing' }), { status: 500 });
 
     const body = await context.request.json();
