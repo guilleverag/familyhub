@@ -5,13 +5,15 @@ import { DashboardTable } from './DashboardTable';
 import { MemberManager } from './MemberManager';
 import { ActivityManager } from './ActivityManager';
 import { ScheduleManager } from './ScheduleManager';
-import { LayoutDashboard, Users, ClipboardList, CalendarDays, Home, Settings, Download, Upload, RotateCcw, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, CalendarDays, Home, Settings, Download, Upload, RotateCcw, ChevronDown, Cloud, RefreshCw } from 'lucide-react';
 
 type Tab = 'dashboard' | 'members' | 'activities' | 'schedule';
 
 export const FamilyHubApp: React.FC = () => {
   const [state, setState] = useState<AppState>(getInitialState);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [isLoadingDB, setIsLoadingDB] = useState<boolean>(true);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
 
   // Mobile Tab Dropdown Combo State
   const [tabDropdownOpen, setTabDropdownOpen] = useState(false);
@@ -21,9 +23,39 @@ export const FamilyHubApp: React.FC = () => {
   const [configOpen, setConfigOpen] = useState(false);
   const configRef = useRef<HTMLDivElement>(null);
 
+  // Initial Load from Cloudflare D1
+  useEffect(() => {
+    fetchDBState();
+  }, []);
+
+  // Save to localStorage as secondary backup
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  const fetchDBState = async () => {
+    try {
+      setIsLoadingDB(true);
+      const res = await fetch('/api/state');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.members && data.activities && data.schedule && data.completions) {
+          setState((prev) => ({
+            ...prev,
+            members: data.members,
+            activities: data.activities,
+            schedule: data.schedule,
+            completions: data.completions,
+          }));
+          setSyncStatus('synced');
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch state from D1, using local state:', err);
+    } finally {
+      setIsLoadingDB(false);
+    }
+  };
 
   // Click outside handlers
   useEffect(() => {
@@ -40,7 +72,7 @@ export const FamilyHubApp: React.FC = () => {
   }, []);
 
   // Handler for completion toggling bound to dateISO
-  const handleToggleCompletion = (
+  const handleToggleCompletion = async (
     dateISO: string,
     activityId: string,
     day: DayOfWeek,
@@ -49,6 +81,8 @@ export const FamilyHubApp: React.FC = () => {
     notes?: string
   ) => {
     const key = `${dateISO}_${activityId}`;
+    
+    // Optimistic UI update
     setState((prev) => ({
       ...prev,
       completions: {
@@ -61,10 +95,24 @@ export const FamilyHubApp: React.FC = () => {
         },
       },
     }));
+
+    // Sync with Cloudflare D1
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dateISO, activityId, dayOfWeek: day, completed, completedBy, notes }),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error('Failed to sync completion with D1:', err);
+      setSyncStatus('error');
+    }
   };
 
   // Handlers for Members
-  const handleAddMember = (memberData: Omit<FamilyMember, 'id'>) => {
+  const handleAddMember = async (memberData: Omit<FamilyMember, 'id'>) => {
     const newMember: FamilyMember = {
       ...memberData,
       id: `mem-${Date.now()}`,
@@ -73,24 +121,60 @@ export const FamilyHubApp: React.FC = () => {
       ...prev,
       members: [...prev.members, newMember],
     }));
+
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newMember),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+    }
   };
 
-  const handleUpdateMember = (updated: FamilyMember) => {
+  const handleUpdateMember = async (updated: FamilyMember) => {
     setState((prev) => ({
       ...prev,
       members: prev.members.map((m) => (m.id === updated.id ? updated : m)),
     }));
+
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+    }
   };
 
-  const handleDeleteMember = (id: string) => {
+  const handleDeleteMember = async (id: string) => {
     setState((prev) => ({
       ...prev,
       members: prev.members.filter((m) => m.id !== id),
     }));
+
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/members', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+    }
   };
 
   // Handlers for Activities
-  const handleAddActivity = (actData: Omit<Activity, 'id' | 'order'>) => {
+  const handleAddActivity = async (actData: Omit<Activity, 'id' | 'order'>) => {
     const newAct: Activity = {
       ...actData,
       id: `act-${Date.now()}`,
@@ -100,49 +184,94 @@ export const FamilyHubApp: React.FC = () => {
       ...prev,
       activities: [...prev.activities, newAct],
     }));
+
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAct),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+    }
   };
 
-  const handleUpdateActivity = (updated: Activity) => {
+  const handleUpdateActivity = async (updated: Activity) => {
     setState((prev) => ({
       ...prev,
       activities: prev.activities.map((a) => (a.id === updated.id ? updated : a)),
     }));
+
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/activities', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+    }
   };
 
-  const handleDeleteActivity = (id: string) => {
+  const handleDeleteActivity = async (id: string) => {
     setState((prev) => ({
       ...prev,
       activities: prev.activities.filter((a) => a.id !== id),
     }));
+
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/activities', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+    }
   };
 
   // Move Activity via Drag and Drop
-  const handleMoveActivity = (sourceId: string, targetId: string) => {
-    setState((prev) => {
-      const sorted = [...prev.activities].sort((a, b) => a.order - b.order);
-      const sourceIndex = sorted.findIndex((a) => a.id === sourceId);
-      const targetIndex = sorted.findIndex((a) => a.id === targetId);
+  const handleMoveActivity = async (sourceId: string, targetId: string) => {
+    const sorted = [...state.activities].sort((a, b) => a.order - b.order);
+    const sourceIndex = sorted.findIndex((a) => a.id === sourceId);
+    const targetIndex = sorted.findIndex((a) => a.id === targetId);
 
-      if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return prev;
+    if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return;
 
-      const [movedItem] = sorted.splice(sourceIndex, 1);
-      sorted.splice(targetIndex, 0, movedItem);
+    const [movedItem] = sorted.splice(sourceIndex, 1);
+    sorted.splice(targetIndex, 0, movedItem);
 
-      // Re-assign order numbers cleanly
-      const reordered = sorted.map((act, index) => ({
-        ...act,
-        order: index + 1,
-      }));
+    const reordered = sorted.map((act, index) => ({
+      ...act,
+      order: index + 1,
+    }));
 
-      return {
-        ...prev,
-        activities: reordered,
-      };
-    });
+    setState((prev) => ({
+      ...prev,
+      activities: reordered,
+    }));
+
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/activities', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reordered),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+    }
   };
 
   // Handler for Schedule Assignments
-  const handleUpdateAssignment = (activityId: string, day: DayOfWeek, memberId: string) => {
+  const handleUpdateAssignment = async (activityId: string, day: DayOfWeek, memberId: string) => {
     setState((prev) => ({
       ...prev,
       schedule: {
@@ -161,6 +290,18 @@ export const FamilyHubApp: React.FC = () => {
         },
       },
     }));
+
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activityId, dayOfWeek: day, memberId }),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      setSyncStatus('error');
+    }
   };
 
   // Reset to initial image defaults
@@ -204,9 +345,24 @@ export const FamilyHubApp: React.FC = () => {
         {/* 1. VISTA MÓVIL / TABLET PEQUEÑA (lg:hidden): Solo Icono Casa + Dropdown Combo Tab + Config */}
         {/* ========================================================================= */}
         <header className="flex lg:hidden items-center justify-between gap-2 mb-4">
-          {/* Solo el Icono Morado de la Casa */}
-          <div className="p-2.5 rounded-2xl bg-indigo-600 shadow-md text-white shrink-0">
-            <Home size={22} />
+          {/* Solo el Icono Morado de la Casa + Indicador D1 */}
+          <div className="flex items-center gap-2">
+            <div className="p-2.5 rounded-2xl bg-indigo-600 shadow-md text-white shrink-0 flex items-center justify-center">
+              <Home size={22} />
+            </div>
+            {/* Insignia Cloudflare D1 Sync */}
+            <div
+              className={`p-2 rounded-full text-xs font-bold border transition-all flex items-center gap-1 ${
+                syncStatus === 'syncing'
+                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                  : syncStatus === 'error'
+                  ? 'bg-rose-100 text-rose-800 border-rose-300'
+                  : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+              }`}
+              title={syncStatus === 'syncing' ? 'Sincronizando con Cloudflare D1...' : 'Sincronizado en la nube (D1)'}
+            >
+              <Cloud size={14} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
+            </div>
           </div>
 
           {/* Menú Combo desplegable de Pestaña Activa + Icono Configuración al lado */}
@@ -300,8 +456,15 @@ export const FamilyHubApp: React.FC = () => {
 
               {configOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200/90 rounded-2xl shadow-xl p-2 z-50 animate-in fade-in duration-150">
-                  <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                    Opciones y Copia de Seguridad
+                  <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 flex items-center justify-between">
+                    <span>Opciones y Backup</span>
+                    <button
+                      type="button"
+                      onClick={fetchDBState}
+                      className="text-indigo-600 hover:underline flex items-center gap-1 normal-case font-bold"
+                    >
+                      <RefreshCw size={12} /> Sync D1
+                    </button>
                   </div>
 
                   <button
@@ -372,6 +535,20 @@ export const FamilyHubApp: React.FC = () => {
               <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300/80 px-2 py-0.5 rounded-full font-black uppercase shadow-xs">
                 Plan Limpieza Hogar
               </span>
+              {/* Cloudflare D1 Live Cloud Status */}
+              <div
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border transition-all flex items-center gap-1.5 ${
+                  syncStatus === 'syncing'
+                    ? 'bg-amber-100 text-amber-950 border-amber-300'
+                    : syncStatus === 'error'
+                    ? 'bg-rose-100 text-rose-950 border-rose-300'
+                    : 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                }`}
+                title="Conectado a Cloudflare D1 (Base de Datos en el Edge)"
+              >
+                <Cloud size={13} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
+                <span>{syncStatus === 'syncing' ? 'Guardando en D1...' : 'D1 Conectado'}</span>
+              </div>
             </div>
           </div>
 
@@ -432,7 +609,7 @@ export const FamilyHubApp: React.FC = () => {
             </nav>
 
             {/* Menú Desplegable Configuración (Reiniciar & Backup) */}
-            <div className="relative">
+            <div className="relative" ref={configRef}>
               <button
                 type="button"
                 onClick={() => setConfigOpen(!configOpen)}
@@ -445,6 +622,69 @@ export const FamilyHubApp: React.FC = () => {
               >
                 <Settings size={16} />
               </button>
+
+              {configOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200/90 rounded-2xl shadow-xl p-2 z-50 animate-in fade-in duration-150">
+                  <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 flex items-center justify-between">
+                    <span>Opciones y Backup</span>
+                    <button
+                      type="button"
+                      onClick={fetchDBState}
+                      className="text-indigo-600 hover:underline flex items-center gap-1 normal-case font-bold"
+                    >
+                      <RefreshCw size={12} /> Sync D1
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfigOpen(false);
+                      handleExportJSON();
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Download size={16} className="text-indigo-600" />
+                    <span>Exportar Backup (JSON)</span>
+                  </button>
+
+                  <label className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-2.5 transition-colors cursor-pointer">
+                    <Upload size={16} className="text-emerald-600" />
+                    <span>Importar Backup (JSON)</span>
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (evt) => {
+                            const text = evt.target?.result as string;
+                            handleImportJSON(text);
+                          };
+                          reader.readAsText(file);
+                        }
+                        setConfigOpen(false);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+
+                  <div className="my-1 border-t border-slate-100" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfigOpen(false);
+                      handleResetDefaults();
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw size={16} />
+                    <span>Restablecer Plan Inicial</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>
