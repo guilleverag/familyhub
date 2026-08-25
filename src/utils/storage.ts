@@ -1,0 +1,86 @@
+import type { AppState } from '../types';
+import { INITIAL_MEMBERS, INITIAL_ACTIVITIES, INITIAL_SCHEDULE } from '../data/initialData';
+import { getMondayOfDate, formatDateISO } from './dates';
+
+const STORAGE_KEY = 'familyhub_state_v2';
+
+export function getInitialState(): AppState {
+  const currentMondayISO = formatDateISO(getMondayOfDate(new Date()));
+
+  if (typeof window === 'undefined') {
+    return {
+      members: INITIAL_MEMBERS,
+      activities: INITIAL_ACTIVITIES,
+      schedule: INITIAL_SCHEDULE,
+      completions: {},
+      activeWeek: currentMondayISO,
+    };
+  }
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      const state: AppState = {
+        members: INITIAL_MEMBERS,
+        activities: INITIAL_ACTIVITIES,
+        schedule: INITIAL_SCHEDULE,
+        completions: {},
+        activeWeek: currentMondayISO,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      return state;
+    }
+    const parsed = JSON.parse(raw);
+
+    // Validate activeWeek format (must be YYYY-MM-DD)
+    let validActiveWeek = currentMondayISO;
+    if (parsed.activeWeek && typeof parsed.activeWeek === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.activeWeek)) {
+      validActiveWeek = parsed.activeWeek;
+    }
+
+    return {
+      members: parsed.members || INITIAL_MEMBERS,
+      activities: parsed.activities || INITIAL_ACTIVITIES,
+      schedule: parsed.schedule || INITIAL_SCHEDULE,
+      completions: parsed.completions || {},
+      activeWeek: validActiveWeek,
+    };
+  } catch (err) {
+    console.error('Error loading state from localStorage:', err);
+    return {
+      members: INITIAL_MEMBERS,
+      activities: INITIAL_ACTIVITIES,
+      schedule: INITIAL_SCHEDULE,
+      completions: {},
+      activeWeek: currentMondayISO,
+    };
+  }
+}
+
+export function saveState(state: AppState): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (err) {
+    console.error('Error saving state to localStorage:', err);
+  }
+}
+
+export function resetToDefaults(): AppState {
+  const currentMondayISO = formatDateISO(getMondayOfDate(new Date()));
+  const state: AppState = {
+    members: INITIAL_MEMBERS,
+    activities: INITIAL_ACTIVITIES,
+    schedule: INITIAL_SCHEDULE,
+    completions: {},
+    activeWeek: currentMondayISO,
+  };
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+  return state;
+}
+
+export function getCurrentWeekId(): string {
+  return formatDateISO(getMondayOfDate(new Date()));
+}

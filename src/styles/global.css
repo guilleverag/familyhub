@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+/* Custom Touch & Mobile Responsiveness Utilities */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .touch-scrolling {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Base resets for mobile tap highlight */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  overflow-x: hidden;
+}
