@@ -1,11 +1,15 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 
 function getDB(context: any) {
+  try {
+    if ((env as any)?.DB) return (env as any).DB;
+  } catch (e) {}
+
   return (
-    context.locals?.runtime?.env?.DB ||
-    context.locals?.env?.DB ||
-    context.env?.DB ||
-    (globalThis as any).DB
+    (context.locals as any)?.env?.DB ||
+    (context as any).env?.DB ||
+    (globalThis as any)?.DB
   );
 }
 

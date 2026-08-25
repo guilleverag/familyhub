@@ -1,12 +1,16 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 import type { FamilyMember, Activity, ScheduleMap, CompletionsMap, DayOfWeek } from '../../types';
 
 function getDB(context: any) {
+  try {
+    if ((env as any)?.DB) return (env as any).DB;
+  } catch (e) {}
+
   return (
-    context.locals?.runtime?.env?.DB ||
-    context.locals?.env?.DB ||
-    context.env?.DB ||
-    (globalThis as any).DB
+    (context.locals as any)?.env?.DB ||
+    (context as any).env?.DB ||
+    (globalThis as any)?.DB
   );
 }
 
@@ -15,14 +19,7 @@ export const GET: APIRoute = async (context) => {
     const db = getDB(context);
 
     if (!db) {
-      const debugInfo = {
-        hasLocals: !!context.locals,
-        hasRuntime: !!context.locals?.runtime,
-        runtimeEnvKeys: context.locals?.runtime?.env ? Object.keys(context.locals.runtime.env) : [],
-        localsEnvKeys: context.locals?.env ? Object.keys(context.locals.env) : [],
-        globalThisDB: !!(globalThis as any).DB,
-      };
-      return new Response(JSON.stringify({ error: 'DB binding missing', debug: debugInfo }), {
+      return new Response(JSON.stringify({ error: 'DB binding missing' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       });
