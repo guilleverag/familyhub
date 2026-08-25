@@ -2,7 +2,10 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "familyhub",
   "compatibility_date": "2026-08-25",
-  "pages_build_output_dir": "./dist",
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "LOCAL_ASSETS"
+  },
   "d1_databases": [
     {
       "binding": "DB",
