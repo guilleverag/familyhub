@@ -345,21 +345,27 @@ export const FamilyHubApp: React.FC = () => {
         {/* 1. VISTA MÓVIL / TABLET PEQUEÑA (lg:hidden): Solo Icono Casa + Dropdown Combo Tab + Config */}
         {/* ========================================================================= */}
         <header className="flex lg:hidden items-center justify-between gap-2 mb-4">
-          {/* Solo el Icono Morado de la Casa + Indicador D1 */}
+          {/* Solo el Icono Morado de la Casa + Indicador D1 Solo Icono */}
           <div className="flex items-center gap-2">
             <div className="p-2.5 rounded-2xl bg-indigo-600 shadow-md text-white shrink-0 flex items-center justify-center">
               <Home size={22} />
             </div>
-            {/* Insignia Cloudflare D1 Sync */}
+            {/* Insignia Cloudflare D1 Sync (Solo Icono) */}
             <div
-              className={`p-2 rounded-full text-xs font-bold border transition-all flex items-center gap-1 ${
+              className={`p-1.5 rounded-full border transition-all flex items-center justify-center ${
                 syncStatus === 'syncing'
-                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                  ? 'bg-amber-100 text-amber-900 border-amber-300'
                   : syncStatus === 'error'
-                  ? 'bg-rose-100 text-rose-800 border-rose-300'
-                  : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  ? 'bg-rose-100 text-rose-900 border-rose-300'
+                  : 'bg-emerald-100 text-emerald-900 border-emerald-300'
               }`}
-              title={syncStatus === 'syncing' ? 'Sincronizando con Cloudflare D1...' : 'Sincronizado en la nube (D1)'}
+              title={
+                syncStatus === 'syncing'
+                  ? 'Guardando en Cloudflare D1...'
+                  : syncStatus === 'error'
+                  ? 'Error de sincronización con Cloudflare D1'
+                  : 'Conectado a Cloudflare D1 (Sincronizado)'
+              }
             >
               <Cloud size={14} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
             </div>
@@ -535,19 +541,24 @@ export const FamilyHubApp: React.FC = () => {
               <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300/80 px-2 py-0.5 rounded-full font-black uppercase shadow-xs">
                 Plan Limpieza Hogar
               </span>
-              {/* Cloudflare D1 Live Cloud Status */}
+              {/* Cloudflare D1 Live Cloud Status (Solo Icono en Desktop) */}
               <div
-                className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border transition-all flex items-center gap-1.5 ${
+                className={`p-1.5 rounded-full border transition-all flex items-center justify-center ${
                   syncStatus === 'syncing'
-                    ? 'bg-amber-100 text-amber-950 border-amber-300'
+                    ? 'bg-amber-100 text-amber-900 border-amber-300'
                     : syncStatus === 'error'
-                    ? 'bg-rose-100 text-rose-950 border-rose-300'
-                    : 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                    ? 'bg-rose-100 text-rose-900 border-rose-300'
+                    : 'bg-emerald-100 text-emerald-900 border-emerald-300'
                 }`}
-                title="Conectado a Cloudflare D1 (Base de Datos en el Edge)"
+                title={
+                  syncStatus === 'syncing'
+                    ? 'Guardando en Cloudflare D1...'
+                    : syncStatus === 'error'
+                    ? 'Error de sincronización con Cloudflare D1'
+                    : 'Conectado a Cloudflare D1 (Sincronizado)'
+                }
               >
-                <Cloud size={13} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
-                <span>{syncStatus === 'syncing' ? 'Guardando en D1...' : 'D1 Conectado'}</span>
+                <Cloud size={14} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
               </div>
             </div>
           </div>
