@@ -35,8 +35,12 @@ export const DashboardTable: React.FC<Props> = ({
   const [dayFilter, setDayFilter] = useState<DayOfWeek | 'TODOS'>('TODOS');
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | 'TODOS'>('TODOS');
 
-  // Single Day Selection for Mobile / Small Screens (< 768px)
-  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0); // 0 = LUNES, ..., 6 = DOMINGO
+  // Single Day Selection for Mobile / Small Screens (< 768px): Inicializado en el día actual (HOY)
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(() => {
+    const today = new Date();
+    const dayNum = today.getDay(); // 0 es Domingo, 1 es Lunes...
+    return dayNum === 0 ? 6 : dayNum - 1; // 0 = LUNES, ..., 6 = DOMINGO
+  });
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -498,7 +502,7 @@ export const DashboardTable: React.FC<Props> = ({
                           className="p-1 bg-slate-200/90 hover:bg-indigo-600 hover:text-white text-slate-700 rounded-full transition-all cursor-pointer shadow-xs border border-slate-300/80 flex items-center justify-center"
                           title="Día Siguiente"
                         >
-                          <ChevronRight size={14} />
+                          <ChevronRight size={16} />
                         </button>
                       </div>
                     </th>
