@@ -39,3 +39,32 @@ CREATE TABLE IF NOT EXISTS completions (
   FOREIGN KEY (activityId) REFERENCES activities(id) ON DELETE CASCADE,
   FOREIGN KEY (completedBy) REFERENCES members(id) ON DELETE CASCADE
 );
+
+-- ============================================================
+-- Tablas para Módulo: Cuentas Hogar
+-- ============================================================
+
+-- Tabla de Gastos Registrados
+CREATE TABLE IF NOT EXISTS accounts_expenses (
+  id TEXT PRIMARY KEY,
+  category TEXT NOT NULL,
+  amount REAL NOT NULL,
+  dateISO TEXT NOT NULL,
+  monthKey TEXT NOT NULL,
+  description TEXT,
+  createdAt TEXT NOT NULL
+);
+
+-- Tabla de Presupuestos Mensuales (opcional por categoría y mes)
+CREATE TABLE IF NOT EXISTS accounts_budgets (
+  category TEXT NOT NULL,
+  monthKey TEXT NOT NULL,
+  amount REAL NOT NULL,
+  PRIMARY KEY (category, monthKey)
+);
+
+-- Tabla de Configuración de Cuentas (ej. Mes activo)
+CREATE TABLE IF NOT EXISTS accounts_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);

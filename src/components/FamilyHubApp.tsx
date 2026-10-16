@@ -1,10 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { AppState, FamilyMember, Activity, ScheduleMap, DayOfWeek } from '../types';
-import { getInitialState, saveState, resetToDefaults } from '../utils/storage';
+import type {
+  AppState,
+  FamilyMember,
+  Activity,
+  ScheduleMap,
+  DayOfWeek,
+  AccountsState,
+  ExpenseRecord,
+} from '../types';
+import {
+  getInitialState,
+  saveState,
+  resetToDefaults,
+  getInitialAccountsState,
+  saveAccountsState,
+} from '../utils/storage';
 import { DashboardTable } from './DashboardTable';
 import { MemberManager } from './MemberManager';
 import { ActivityManager } from './ActivityManager';
 import { ScheduleManager } from './ScheduleManager';
+import { AccountsManager } from './AccountsManager';
 import { NavigationDrawer, type AppModule } from './NavigationDrawer';
 import { PlaceholderModule } from './PlaceholderModule';
 import {
@@ -28,6 +43,7 @@ type Tab = 'dashboard' | 'members' | 'activities' | 'schedule';
 
 export const FamilyHubApp: React.FC = () => {
   const [state, setState] = useState<AppState>(getInitialState);
+  const [accountsState, setAccountsState] = useState<AccountsState>(getInitialAccountsState);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [isLoadingDB, setIsLoadingDB] = useState<boolean>(true);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
@@ -62,7 +78,7 @@ export const FamilyHubApp: React.FC = () => {
 
   // Initial Load from Cloudflare D1
   useEffect(() => {
-    fetchDBState();
+    fetchAllDBState();
   }, []);
 
   // Save to localStorage as secondary backup
@@ -70,9 +86,18 @@ export const FamilyHubApp: React.FC = () => {
     saveState(state);
   }, [state]);
 
-  const fetchDBState = async () => {
+  useEffect(() => {
+    saveAccountsState(accountsState);
+  }, [accountsState]);
+
+  const fetchAllDBState = async () => {
+    setIsLoadingDB(true);
+    await Promise.all([fetchCleaningDBState(), fetchAccountsDBState()]);
+    setIsLoadingDB(false);
+  };
+
+  const fetchCleaningDBState = async () => {
     try {
-      setIsLoadingDB(true);
       const res = await fetch('/api/state');
       if (res.ok) {
         const data = await res.json();
@@ -88,9 +113,27 @@ export const FamilyHubApp: React.FC = () => {
         }
       }
     } catch (err) {
-      console.warn('Could not fetch state from D1, using local state:', err);
-    } finally {
-      setIsLoadingDB(false);
+      console.warn('Could not fetch cleaning state from D1, using local state:', err);
+    }
+  };
+
+  const fetchAccountsDBState = async () => {
+    try {
+      const res = await fetch('/api/accounts');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.expenses) {
+          setAccountsState((prev) => ({
+            ...prev,
+            expenses: data.expenses,
+            activeMonth: data.activeMonth || prev.activeMonth,
+            customBudgets: data.customBudgets || prev.customBudgets,
+          }));
+          setSyncStatus('synced');
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch accounts state from D1, using local state:', err);
     }
   };
 
@@ -108,7 +151,9 @@ export const FamilyHubApp: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Handler for completion toggling bound to dateISO
+  // ==========================================
+  // Cleaning Plan Handlers
+  // ==========================================
   const handleToggleCompletion = async (
     dateISO: string,
     activityId: string,
@@ -119,7 +164,6 @@ export const FamilyHubApp: React.FC = () => {
   ) => {
     const key = `${dateISO}_${activityId}`;
     
-    // Optimistic UI update
     setState((prev) => ({
       ...prev,
       completions: {
@@ -133,7 +177,6 @@ export const FamilyHubApp: React.FC = () => {
       },
     }));
 
-    // Sync with Cloudflare D1
     try {
       setSyncStatus('syncing');
       await fetch('/api/completions', {
@@ -148,7 +191,6 @@ export const FamilyHubApp: React.FC = () => {
     }
   };
 
-  // Handlers for Members
   const handleAddMember = async (memberData: Omit<FamilyMember, 'id'>) => {
     const newMember: FamilyMember = {
       ...memberData,
@@ -210,7 +252,6 @@ export const FamilyHubApp: React.FC = () => {
     }
   };
 
-  // Handlers for Activities
   const handleAddActivity = async (actData: Omit<Activity, 'id' | 'order'>) => {
     const newAct: Activity = {
       ...actData,
@@ -273,7 +314,6 @@ export const FamilyHubApp: React.FC = () => {
     }
   };
 
-  // Move Activity via Drag and Drop
   const handleMoveActivity = async (sourceId: string, targetId: string) => {
     const sorted = [...state.activities].sort((a, b) => a.order - b.order);
     const sourceIndex = sorted.findIndex((a) => a.id === sourceId);
@@ -307,7 +347,6 @@ export const FamilyHubApp: React.FC = () => {
     }
   };
 
-  // Handler for Schedule Assignments
   const handleUpdateAssignment = async (activityId: string, day: DayOfWeek, memberId: string) => {
     setState((prev) => ({
       ...prev,
@@ -341,17 +380,19 @@ export const FamilyHubApp: React.FC = () => {
     }
   };
 
-  // Reset to initial image defaults
   const handleResetDefaults = () => {
-    if (confirm('¿Deseas restablecer todos los datos a la configuración inicial?')) {
+    if (confirm('¿Deseas restablecer todos los datos del plan de limpieza a la configuración inicial?')) {
       const fresh = resetToDefaults();
       setState(fresh);
     }
   };
 
-  // Backup & Import
   const handleExportJSON = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(state, null, 2));
+    const dataToExport = {
+      cleaning: state,
+      accounts: accountsState,
+    };
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
     downloadAnchor.setAttribute('download', `FamilyHub_Backup_${state.activeWeek}.json`);
@@ -363,14 +404,96 @@ export const FamilyHubApp: React.FC = () => {
   const handleImportJSON = (dataStr: string) => {
     try {
       const parsed = JSON.parse(dataStr);
-      if (parsed.members && parsed.activities && parsed.schedule) {
+      if (parsed.cleaning) {
+        setState(parsed.cleaning);
+        if (parsed.accounts) setAccountsState(parsed.accounts);
+        alert('¡Datos completos importados con éxito!');
+      } else if (parsed.members && parsed.activities && parsed.schedule) {
         setState(parsed);
-        alert('¡Datos importados con éxito!');
+        alert('¡Datos de limpieza importados con éxito!');
       } else {
         alert('Archivo JSON inválido.');
       }
     } catch (e) {
       alert('Error al leer el archivo JSON.');
+    }
+  };
+
+  // ==========================================
+  // Cuentas Hogar Handlers
+  // ==========================================
+  const handleAddExpense = async (expenseData: Omit<ExpenseRecord, 'id' | 'createdAt'>) => {
+    const newExpense: ExpenseRecord = {
+      ...expenseData,
+      id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    setAccountsState((prev) => ({
+      ...prev,
+      expenses: [newExpense, ...prev.expenses],
+    }));
+
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_expense',
+          expense: newExpense,
+        }),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error('Failed to sync expense with D1:', err);
+      setSyncStatus('error');
+    }
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    setAccountsState((prev) => ({
+      ...prev,
+      expenses: prev.expenses.filter((e) => e.id !== id),
+    }));
+
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_expense',
+          id,
+        }),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error('Failed to delete expense from D1:', err);
+      setSyncStatus('error');
+    }
+  };
+
+  const handleSetActiveMonth = async (monthKey: string) => {
+    setAccountsState((prev) => ({
+      ...prev,
+      activeMonth: monthKey,
+    }));
+
+    try {
+      setSyncStatus('syncing');
+      await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set_active_month',
+          monthKey,
+        }),
+      });
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error('Failed to set active month in D1:', err);
+      setSyncStatus('error');
     }
   };
 
@@ -427,7 +550,7 @@ export const FamilyHubApp: React.FC = () => {
 
             {/* Nombre del módulo si no es el principal */}
             {activeModule !== 'cleaning' && (
-              <span className="text-xs font-black text-slate-800 truncate max-w-[130px]">
+              <span className="text-xs font-black text-slate-800 truncate max-w-[140px]">
                 {getModuleTitle(activeModule)}
               </span>
             )}
@@ -529,7 +652,7 @@ export const FamilyHubApp: React.FC = () => {
                       <span>Opciones y Backup</span>
                       <button
                         type="button"
-                        onClick={fetchDBState}
+                        onClick={fetchAllDBState}
                         className="text-indigo-600 hover:underline flex items-center gap-1 normal-case font-bold"
                       >
                         <RefreshCw size={12} /> Sync D1
@@ -738,7 +861,7 @@ export const FamilyHubApp: React.FC = () => {
                       <span>Opciones y Backup</span>
                       <button
                         type="button"
-                        onClick={fetchDBState}
+                        onClick={fetchAllDBState}
                         className="text-indigo-600 hover:underline flex items-center gap-1 normal-case font-bold"
                       >
                         <RefreshCw size={12} /> Sync D1
@@ -857,9 +980,19 @@ export const FamilyHubApp: React.FC = () => {
             </>
           )}
 
-          {(activeModule === 'calendar' || activeModule === 'accounts') && (
+          {activeModule === 'accounts' && (
+            <AccountsManager
+              expenses={accountsState.expenses}
+              activeMonth={accountsState.activeMonth}
+              onAddExpense={handleAddExpense}
+              onDeleteExpense={handleDeleteExpense}
+              onSetActiveMonth={handleSetActiveMonth}
+            />
+          )}
+
+          {activeModule === 'calendar' && (
             <PlaceholderModule
-              module={activeModule}
+              module="calendar"
               onBackToCleaning={() => setActiveModule('cleaning')}
               onOpenMenu={() => setDrawerOpen(true)}
             />

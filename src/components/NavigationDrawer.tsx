@@ -90,13 +90,13 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
     {
       id: 'accounts',
       title: 'Cuentas Hogar',
-      shortDesc: 'Gastos familiares, servicios y presupuesto',
-      badge: 'Próximamente',
+      shortDesc: 'Gastos familiares, rubros y presupuesto',
+      badge: 'Activo',
       badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300',
       icon: Wallet,
       iconBg: 'bg-emerald-600',
       iconColor: 'text-white',
-      isAvailable: false,
+      isAvailable: true,
     },
   ];
 
