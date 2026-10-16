@@ -11,15 +11,18 @@ export function formatCurrency(amount: number): string {
   }).format(Math.round(amount));
 }
 
+import { getBogotaTodayISO } from './dates';
+
 export function formatCurrencyWithSymbol(amount: number): string {
   return `$ ${formatCurrency(amount)}`;
 }
 
 export function getMonthKey(date: Date | string = new Date()): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  return `${year}-${month}`;
+  if (typeof date === 'string') {
+    return date.slice(0, 7);
+  }
+  const iso = getBogotaTodayISO(date);
+  return iso.slice(0, 7);
 }
 
 const MONTH_NAMES = [

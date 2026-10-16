@@ -33,15 +33,32 @@ export function getMondayOfDate(d: Date = new Date()): Date {
   return monday;
 }
 
-// Format Date as ISO string "YYYY-MM-DD"
+export const BOGOTA_TIMEZONE = 'America/Bogota';
+
+// Returns today's date formatted as "YYYY-MM-DD" strictly in Colombia (America/Bogota) timezone
+export function getBogotaTodayISO(d: Date = new Date()): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: BOGOTA_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(d);
+  } catch (e) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+}
+
+// Format Date as ISO string "YYYY-MM-DD" in Colombia (America/Bogota) timezone
 export function formatDateISO(d: Date): string {
   if (!d || isNaN(d.getTime())) {
     d = new Date();
   }
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return getBogotaTodayISO(d);
 }
 
 // Safely parses "YYYY-MM-DD" string into Date object with fallback

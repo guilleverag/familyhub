@@ -35,6 +35,7 @@ import {
   calculateMonthSummary,
 } from '../utils/accounts';
 import { ExpenseModal } from './ExpenseModal';
+import { getBogotaTodayISO } from '../utils/dates';
 
 interface AccountsManagerProps {
   expenses: ExpenseRecord[];
@@ -73,8 +74,8 @@ export const AccountsManager: React.FC<AccountsManagerProps> = ({
     }
   }, [activeMonth]);
 
-  // Today ISO
-  const todayISO = new Date().toISOString().slice(0, 10);
+  // Today ISO in Colombia (Bogota) timezone
+  const todayISO = getBogotaTodayISO();
   const calendarCurrentMonthKey = todayISO.slice(0, 7);
 
   // Calculate summary for the viewed month

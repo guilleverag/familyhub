@@ -42,6 +42,8 @@ const CATEGORY_ICONS: Record<string, React.ComponentType<{ size?: number; classN
   PawPrint,
 };
 
+import { getBogotaTodayISO } from '../utils/dates';
+
 export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   isOpen,
   onClose,
@@ -49,7 +51,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   initialCategory = 'Mercado',
   defaultDateISO,
 }) => {
-  const getTodayISO = () => new Date().toISOString().slice(0, 10);
+  const getTodayISO = () => getBogotaTodayISO();
 
   const [category, setCategory] = useState<ExpenseCategory>(initialCategory);
   const [amountStr, setAmountStr] = useState<string>('');
