@@ -66,6 +66,13 @@ export const AccountsManager: React.FC<AccountsManagerProps> = ({
   const [modalInitialCategory, setModalInitialCategory] = useState<ExpenseCategory>('Mercado');
   const [categoryFilter, setCategoryFilter] = useState<ExpenseCategory | 'TODOS'>('TODOS');
 
+  // Sync viewedMonth when activeMonth arrives from D1
+  React.useEffect(() => {
+    if (activeMonth) {
+      setViewedMonth(activeMonth);
+    }
+  }, [activeMonth]);
+
   // Today ISO
   const todayISO = new Date().toISOString().slice(0, 10);
   const calendarCurrentMonthKey = todayISO.slice(0, 7);
