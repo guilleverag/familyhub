@@ -2,6 +2,21 @@ import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 import type { FamilyMember, Activity, ScheduleMap, CompletionsMap, DayOfWeek } from '../../types';
 
+const PROD_URL = 'https://familyhub.guillermoveraghanain.workers.dev';
+
+async function proxyToProd(context: any) {
+  const target = new URL(context.url.pathname + context.url.search, PROD_URL);
+  const res = await fetch(target.toString(), {
+    method: context.request.method,
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+  });
+  const text = await res.text();
+  return new Response(text, {
+    status: res.status,
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store, max-age=0' },
+  });
+}
+
 function getDB(context: any) {
   try {
     if ((env as any)?.DB) return (env as any).DB;
@@ -15,6 +30,10 @@ function getDB(context: any) {
 }
 
 export const GET: APIRoute = async (context) => {
+  if (import.meta.env.DEV) {
+    return proxyToProd(context);
+  }
+
   try {
     const db = getDB(context);
 

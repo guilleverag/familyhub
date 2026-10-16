@@ -2,6 +2,32 @@ import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 import type { ExpenseRecord } from '../../types';
 
+const PROD_URL = 'https://familyhub.guillermoveraghanain.workers.dev';
+
+async function proxyToProd(context: any) {
+  const target = new URL(context.url.pathname + context.url.search, PROD_URL);
+  const method = context.request.method;
+  const body = method !== 'GET' && method !== 'HEAD' ? await context.request.text() : undefined;
+
+  const res = await fetch(target.toString(), {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body,
+  });
+
+  const text = await res.text();
+  return new Response(text, {
+    status: res.status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store, max-age=0',
+    },
+  });
+}
+
 function getDB(context: any) {
   try {
     if ((env as any)?.DB) return (env as any).DB;
@@ -53,6 +79,11 @@ async function ensureAccountsTables(db: any) {
 }
 
 export const GET: APIRoute = async (context) => {
+  // En modo desarrollo local, conectarse directamente a la BD de Cloudflare en producción
+  if (import.meta.env.DEV) {
+    return proxyToProd(context);
+  }
+
   try {
     const db = getDB(context);
 
@@ -117,6 +148,11 @@ export const GET: APIRoute = async (context) => {
 };
 
 export const POST: APIRoute = async (context) => {
+  // En modo desarrollo local, enviar la mutación directamente a la BD de Cloudflare en producción
+  if (import.meta.env.DEV) {
+    return proxyToProd(context);
+  }
+
   try {
     const db = getDB(context);
 

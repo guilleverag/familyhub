@@ -1,6 +1,26 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 
+const PROD_URL = 'https://familyhub.guillermoveraghanain.workers.dev';
+
+async function proxyToProd(context: any) {
+  const target = new URL(context.url.pathname + context.url.search, PROD_URL);
+  const method = context.request.method;
+  const body = method !== 'GET' && method !== 'HEAD' ? await context.request.text() : undefined;
+
+  const res = await fetch(target.toString(), {
+    method,
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body,
+  });
+
+  const text = await res.text();
+  return new Response(text, {
+    status: res.status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 function getDB(context: any) {
   try {
     if ((env as any)?.DB) return (env as any).DB;
@@ -14,6 +34,10 @@ function getDB(context: any) {
 }
 
 export const POST: APIRoute = async (context) => {
+  if (import.meta.env.DEV) {
+    return proxyToProd(context);
+  }
+
   try {
     const db = getDB(context);
     if (!db) return new Response(JSON.stringify({ error: 'DB binding missing' }), { status: 500 });
@@ -33,6 +57,10 @@ export const POST: APIRoute = async (context) => {
 };
 
 export const PUT: APIRoute = async (context) => {
+  if (import.meta.env.DEV) {
+    return proxyToProd(context);
+  }
+
   try {
     const db = getDB(context);
     if (!db) return new Response(JSON.stringify({ error: 'DB binding missing' }), { status: 500 });
@@ -52,6 +80,10 @@ export const PUT: APIRoute = async (context) => {
 };
 
 export const DELETE: APIRoute = async (context) => {
+  if (import.meta.env.DEV) {
+    return proxyToProd(context);
+  }
+
   try {
     const db = getDB(context);
     if (!db) return new Response(JSON.stringify({ error: 'DB binding missing' }), { status: 500 });
